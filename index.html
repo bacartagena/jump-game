@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Brandon's World</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(180deg, #1b1f3a 0%, #2d1b4e 100%);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .screen { display: none; width: 100%; max-width: 960px; }
+  .screen.active { display: block; }
+  h1 {
+    font-size: 48px;
+    text-align: center;
+    margin-bottom: 8px;
+    background: linear-gradient(90deg, #ffb347, #ff6b9d, #a18cd1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 1px;
+  }
+  .tagline { text-align: center; color: #b8b8d4; margin-bottom: 28px; }
+  .card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 28px;
+    backdrop-filter: blur(10px);
+  }
+  button {
+    padding: 12px 20px; border-radius: 8px; border: none;
+    background: linear-gradient(90deg, #ff6b9d, #a18cd1);
+    color: #fff; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: transform 0.1s;
+  }
+  button:hover { transform: translateY(-1px); }
+  button:active { transform: translateY(0); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  button.secondary {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+  }
+  .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+  .btn-row button { flex: 1; }
+
+  /* Character select */
+  .section-label {
+    text-align: center; color: #b8b8d4; margin-bottom: 16px;
+    font-size: 14px; text-transform: uppercase; letter-spacing: 2px;
+  }
+  .char-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    margin-bottom: 20px;
+  }
+  .char-card {
+    background: rgba(255,255,255,0.04);
+    border: 2px solid transparent;
+    border-radius: 14px;
+    padding: 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .char-card:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }
+  .char-card.selected {
+    border-color: #ff6b9d;
+    background: rgba(255,107,157,0.12);
+    box-shadow: 0 4px 20px rgba(255,107,157,0.25);
+  }
+  .char-photo {
+    width: 100%; aspect-ratio: 1;
+    border-radius: 50%;
+    background: #333 center/cover no-repeat;
+    margin-bottom: 10px;
+    border: 3px solid rgba(255,255,255,0.2);
+  }
+  .char-card.selected .char-photo { border-color: #ff6b9d; }
+  .char-name { font-weight: 700; font-size: 16px; }
+
+  /* Name entry */
+  .name-row {
+    display: flex; gap: 10px; align-items: center;
+    background: rgba(255,255,255,0.04);
+    padding: 10px 12px; border-radius: 10px;
+    margin-bottom: 16px;
+  }
+  .name-row label { font-size: 14px; color: #b8b8d4; white-space: nowrap; }
+  .name-row input {
+    flex: 1; padding: 8px 12px; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(0,0,0,0.25); color: #fff; font-size: 14px;
+  }
+  .name-row input:focus { outline: none; border-color: #ff6b9d; }
+
+  /* Game */
+  #gameWrap {
+    position: relative;
+    background: #000;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  canvas { display: block; width: 100%; height: auto; }
+  .hud {
+    position: absolute; top: 16px; left: 16px; right: 16px;
+    display: flex; justify-content: space-between;
+    font-weight: 700; font-size: 20px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    pointer-events: none;
+  }
+  .overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 12px; padding: 20px;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h2 { font-size: 36px; }
+  .overlay .score-big { font-size: 56px; font-weight: 800; color: #ffb347; }
+
+  /* Leaderboard */
+  .lb-row {
+    display: grid; grid-template-columns: 40px 56px 1fr 120px;
+    gap: 12px; align-items: center;
+    padding: 12px; border-radius: 10px;
+    background: rgba(255,255,255,0.04); margin-bottom: 8px;
+  }
+  .lb-rank { font-size: 20px; font-weight: 700; text-align: center; color: #ffb347; }
+  .lb-score { font-size: 20px; font-weight: 700; text-align: right; color: #a18cd1; }
+  .lb-photo { width: 40px; height: 40px; border-radius: 50%; background: #333 center/cover no-repeat; }
+  .lb-meta { font-size: 12px; color: #b8b8d4; }
+  .back-btn { margin-bottom: 16px; }
+
+  @media (max-width: 600px) {
+    body { padding: 10px; align-items: flex-start; }
+    h1 { font-size: 32px; }
+    .tagline { margin-bottom: 18px; font-size: 13px; }
+    .card { padding: 16px; }
+    .char-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .char-card { padding: 10px; }
+    .char-name { font-size: 14px; }
+    .hud { font-size: 15px; top: 10px; left: 10px; right: 10px; }
+    .overlay h2 { font-size: 26px; }
+    .overlay p { font-size: 14px; text-align: center; }
+    .overlay .score-big { font-size: 42px; }
+    .lb-row { grid-template-columns: 32px 40px 1fr 80px; gap: 8px; padding: 10px; }
+    .lb-rank { font-size: 16px; }
+    .lb-score { font-size: 16px; }
+    .lb-photo { width: 36px; height: 36px; }
+  }
+  .rotate-hint {
+    display: none;
+    text-align: center;
+    padding: 20px;
+    color: #b8b8d4;
+    font-size: 14px;
+    background: rgba(255,179,71,0.1);
+    border: 1px solid rgba(255,179,71,0.3);
+    border-radius: 10px;
+    margin-top: 12px;
+  }
+  @media (max-width: 600px) and (orientation: portrait) {
+    #gameScreen.active .rotate-hint { display: block; }
+  }
+</style>
+</head>
+<body>
+
+<!-- START / CHARACTER SELECT -->
+<div id="menuScreen" class="screen active">
+  <h1>Brandon's World</h1>
+  <p class="tagline">Press space. Go far. Don't die.</p>
+  <div class="card">
+    <div class="section-label">Choose your character</div>
+    <div class="char-grid" id="charGrid"></div>
+    <div class="name-row">
+      <label for="playerName">Your name</label>
+      <input type="text" id="playerName" maxlength="20" placeholder="(optional — for the leaderboard)" />
+    </div>
+    <div class="btn-row">
+      <button id="playBtn" disabled>Play</button>
+      <button class="secondary" id="leaderboardBtn">Leaderboard</button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="gameScreen" class="screen">
+  <div class="rotate-hint">📱 Rotate your phone sideways for a bigger view.</div>
+  <div id="gameWrap">
+    <canvas id="gameCanvas" width="960" height="400"></canvas>
+    <div class="hud">
+      <div>Score: <span id="hudScore">0</span></div>
+      <div>Best: <span id="hudBest">0</span></div>
+    </div>
+    <div class="overlay" id="startOverlay">
+      <h2>Ready?</h2>
+      <p id="startHint">Press <b>SPACE</b> to jump. Hold to jump higher.</p>
+      <button id="startBtn">Start</button>
+      <button class="secondary" id="backFromStart">Back to menu</button>
+    </div>
+    <div class="overlay hidden" id="deathOverlay">
+      <h2>Game Over</h2>
+      <div class="score-big" id="finalScore">0</div>
+      <div id="newBestMsg" style="color: #ffb347; font-weight: 600;"></div>
+      <div class="btn-row" style="margin-top: 12px;">
+        <button id="retryBtn">Retry</button>
+        <button class="secondary" id="backFromDeath">Menu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LEADERBOARD -->
+<div id="leaderboardScreen" class="screen">
+  <button class="secondary back-btn" id="backFromLb">← Back</button>
+  <h1 style="font-size: 36px;">Leaderboard</h1>
+  <div class="card">
+    <div id="lbList"></div>
+  </div>
+</div>
+
+<script>
+/* ============ CHARACTERS ============ */
+const CHARACTERS = [
+  { id: 'brandon', name: 'Brandon', photo: 'public/brandon.png' },
+  { id: 'richard', name: 'Richard', photo: 'public/richard.png' },
+  { id: 'yadira',  name: 'Yadira',  photo: 'public/yadira.png' },
+  { id: 'bethany', name: 'Bethany', photo: 'public/bethany.png' },
+];
+
+let selectedChar = null;
+let playerName = '';
+
+/* ============ STORAGE ============ */
+const DB = {
+  get scores() { return JSON.parse(localStorage.getItem('bw_scores') || '[]'); },
+  set scores(v) { localStorage.setItem('bw_scores', JSON.stringify(v)); },
+  get lastName() { return localStorage.getItem('bw_lastName') || ''; },
+  set lastName(v) { localStorage.setItem('bw_lastName', v); },
+  get lastChar() { return localStorage.getItem('bw_lastChar') || ''; },
+  set lastChar(v) { localStorage.setItem('bw_lastChar', v); },
+};
+
+function bestScore() {
+  return DB.scores.reduce((m, s) => Math.max(m, s.score), 0);
+}
+
+/* ============ SCREENS ============ */
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ============ MENU ============ */
+function renderCharGrid() {
+  const grid = document.getElementById('charGrid');
+  grid.innerHTML = CHARACTERS.map(c => `
+    <div class="char-card" data-id="${c.id}">
+      <div class="char-photo" style="background-image:url('${c.photo}')"></div>
+      <div class="char-name">${c.name}</div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('.char-card').forEach(el => {
+    el.addEventListener('click', () => selectCharacter(el.dataset.id));
+  });
+}
+
+function selectCharacter(id) {
+  selectedChar = CHARACTERS.find(c => c.id === id);
+  document.querySelectorAll('.char-card').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === id);
+  });
+  document.getElementById('playBtn').disabled = false;
+  DB.lastChar = id;
+}
+
+document.getElementById('playerName').addEventListener('input', e => {
+  playerName = e.target.value.trim();
+  DB.lastName = playerName;
+});
+
+document.getElementById('playBtn').addEventListener('click', startGameSession);
+document.getElementById('leaderboardBtn').addEventListener('click', showLeaderboard);
+
+/* ============ LEADERBOARD ============ */
+function showLeaderboard() {
+  const rows = [...DB.scores].sort((a, b) => b.score - a.score).slice(0, 50);
+  const list = document.getElementById('lbList');
+  if (rows.length === 0) {
+    list.innerHTML = '<div style="text-align:center; padding: 40px; color:#b8b8d4;">No scores yet. Be the first!</div>';
+  } else {
+    list.innerHTML = rows.map((r, i) => {
+      const c = CHARACTERS.find(c => c.id === r.charId);
+      const photo = c ? c.photo : '';
+      const charName = c ? c.name : r.charId;
+      return `
+        <div class="lb-row">
+          <div class="lb-rank">#${i + 1}</div>
+          <div class="lb-photo" style="background-image:url('${photo}')"></div>
+          <div>
+            <div style="font-weight:600;">${escapeHtml(r.name || 'Anonymous')}</div>
+            <div class="lb-meta">as ${escapeHtml(charName)}</div>
+          </div>
+          <div class="lb-score">${r.score}</div>
+        </div>
+      `;
+    }).join('');
+  }
+  show('leaderboardScreen');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+document.getElementById('backFromLb').addEventListener('click', () => show('menuScreen'));
+
+/* ============ GAME ============ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const GROUND_Y = H - 60;
+
+let faceImg = null;
+let gameState = 'idle';
+let lastTime = 0;
+let score = 0;
+let speed = 0;
+let distance = 0;
+let obstacles = [];
+let clouds = [];
+let spawnTimer = 0;
+let spacePressed = false;
+let spaceJustPressed = false;
+
+const player = {
+  x: 120, y: GROUND_Y, vy: 0, w: 44, h: 70,
+  onGround: true, jumpHeldFrames: 0,
+};
+
+const GRAVITY = 0.9;
+const JUMP_VELOCITY = -11;
+const JUMP_HOLD_BOOST = -0.55;
+const MAX_JUMP_HOLD = 14;
+
+function resetGame() {
+  score = 0;
+  speed = 5;
+  distance = 0;
+  obstacles = [];
+  clouds = [
+    { x: 200, y: 60, s: 1 },
+    { x: 600, y: 100, s: 0.8 },
+    { x: 850, y: 40, s: 1.2 },
+  ];
+  spawnTimer = 60;
+  player.y = GROUND_Y;
+  player.vy = 0;
+  player.onGround = true;
+  player.jumpHeldFrames = 0;
+}
+
+function startGameSession() {
+  if (!selectedChar) return;
+  document.getElementById('hudBest').textContent = bestScore();
+  document.getElementById('hudScore').textContent = '0';
+  loadFaceImage(selectedChar.photo);
+  show('gameScreen');
+  document.getElementById('startOverlay').classList.remove('hidden');
+  document.getElementById('deathOverlay').classList.add('hidden');
+  gameState = 'idle';
+  resetGame();
+  draw();
+}
+
+function loadFaceImage(src) {
+  const img = new Image();
+  img.onload = () => { faceImg = img; draw(); };
+  img.src = src;
+}
+
+document.getElementById('startBtn').addEventListener('click', beginRun);
+document.getElementById('retryBtn').addEventListener('click', () => {
+  resetGame();
+  beginRun();
+});
+document.getElementById('backFromStart').addEventListener('click', () => show('menuScreen'));
+document.getElementById('backFromDeath').addEventListener('click', () => show('menuScreen'));
+
+function beginRun() {
+  document.getElementById('startOverlay').classList.add('hidden');
+  document.getElementById('deathOverlay').classList.add('hidden');
+  gameState = 'running';
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+function pressJump() {
+  if (!spacePressed) spaceJustPressed = true;
+  spacePressed = true;
+  const onGameScreen = document.getElementById('gameScreen').classList.contains('active');
+  if (gameState === 'idle' && onGameScreen) beginRun();
+  else if (gameState === 'dead' && onGameScreen) { resetGame(); beginRun(); }
+}
+function releaseJump() { spacePressed = false; }
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); pressJump(); }
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space') releaseJump();
+});
+
+// Touch controls: tap/hold anywhere on the canvas to jump.
+// Buttons inside overlays still receive their own clicks because we only
+// bind touch on the canvas itself.
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  pressJump();
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  releaseJump();
+}, { passive: false });
+canvas.addEventListener('touchcancel', releaseJump);
+
+// Detect touch device for hint text
+if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+  const hint = document.getElementById('startHint');
+  if (hint) hint.innerHTML = 'Tap the screen to jump. Hold to jump higher.';
+}
+
+function loop(now) {
+  const dt = Math.min(32, now - lastTime);
+  lastTime = now;
+  if (gameState === 'running') update(dt);
+  draw();
+  if (gameState === 'running') requestAnimationFrame(loop);
+}
+
+function update(dt) {
+  const frames = dt / 16.67;
+  distance += speed * frames;
+  score = Math.floor(distance / 10);
+  speed = 5 + Math.min(12, distance / 1200);
+
+  if (spaceJustPressed && player.onGround) {
+    player.vy = JUMP_VELOCITY;
+    player.onGround = false;
+    player.jumpHeldFrames = 0;
+  }
+  spaceJustPressed = false;
+  if (!player.onGround && spacePressed && player.jumpHeldFrames < MAX_JUMP_HOLD && player.vy < 0) {
+    player.vy += JUMP_HOLD_BOOST;
+    player.jumpHeldFrames++;
+  }
+  player.vy += GRAVITY * frames;
+  player.y += player.vy * frames;
+  if (player.y >= GROUND_Y) {
+    player.y = GROUND_Y;
+    player.vy = 0;
+    player.onGround = true;
+  }
+
+  clouds.forEach(c => {
+    c.x -= speed * 0.2 * frames;
+    if (c.x < -80) { c.x = W + Math.random() * 200; c.y = 30 + Math.random() * 80; }
+  });
+
+  spawnTimer -= frames;
+  if (spawnTimer <= 0) {
+    spawnObstacle();
+    const baseGap = Math.max(45, 110 - speed * 4);
+    spawnTimer = baseGap + Math.random() * 60;
+  }
+
+  obstacles.forEach(o => o.x -= speed * frames);
+  obstacles = obstacles.filter(o => o.x + o.w > -10);
+
+  for (const o of obstacles) {
+    if (aabb(player.x - player.w/2 + 6, player.y - player.h, player.w - 12, player.h,
+             o.x, o.y, o.w, o.h)) {
+      die();
+      return;
+    }
+  }
+
+  document.getElementById('hudScore').textContent = score;
+}
+
+function spawnObstacle() {
+  const r = Math.random();
+  const tall = speed > 9 && r < 0.3;
+  const wide = speed > 11 && r > 0.75;
+  let w = 22, h = 40;
+  if (tall) { h = 60 + Math.random() * 15; w = 22; }
+  if (wide) { w = 50 + Math.random() * 20; h = 32; }
+  obstacles.push({ x: W + 20, y: GROUND_Y - h, w, h });
+}
+
+function aabb(ax, ay, aw, ah, bx, by, bw, bh) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+function die() {
+  gameState = 'dead';
+  const prevBest = bestScore();
+  const newBest = score > prevBest;
+  const entry = {
+    name: playerName || 'Anonymous',
+    charId: selectedChar.id,
+    score,
+    at: Date.now(),
+  };
+  const scores = DB.scores;
+  scores.push(entry);
+  DB.scores = scores;
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('newBestMsg').textContent = newBest ? 'New best score!' : '';
+  document.getElementById('hudBest').textContent = Math.max(prevBest, score);
+  document.getElementById('deathOverlay').classList.remove('hidden');
+}
+
+/* ============ RENDER ============ */
+function draw() {
+  const grd = ctx.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#87ceeb');
+  grd.addColorStop(0.7, '#f0c080');
+  grd.addColorStop(1, '#c49563');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  clouds.forEach(c => drawCloud(c.x, c.y, c.s));
+
+  ctx.fillStyle = '#8b6239';
+  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  ctx.fillStyle = '#5a3e22';
+  for (let i = 0; i < 20; i++) {
+    const x = (i * 60 - (distance % 60));
+    ctx.fillRect(x, GROUND_Y + 8, 30, 3);
+  }
+  ctx.fillStyle = '#6b4a2a';
+  ctx.fillRect(0, GROUND_Y, W, 3);
+
+  obstacles.forEach(o => {
+    ctx.fillStyle = '#2e7d32';
+    ctx.fillRect(o.x, o.y, o.w, o.h);
+    ctx.fillStyle = '#1b5e20';
+    ctx.fillRect(o.x + 2, o.y + 4, 4, o.h - 8);
+    ctx.fillRect(o.x + o.w - 6, o.y + 4, 4, o.h - 8);
+  });
+
+  drawPlayer();
+}
+
+function drawCloud(x, y, s) {
+  ctx.beginPath();
+  ctx.arc(x, y, 18 * s, 0, Math.PI * 2);
+  ctx.arc(x + 20 * s, y - 8 * s, 16 * s, 0, Math.PI * 2);
+  ctx.arc(x + 38 * s, y, 18 * s, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawPlayer() {
+  const cx = player.x;
+  const feetY = player.y;
+  const headR = 20;
+  const bodyTop = feetY - player.h + headR * 2;
+  const bodyBottom = feetY - 24;
+  const bodyMid = (bodyTop + bodyBottom) / 2;
+
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  const running = player.onGround && gameState === 'running';
+  const legSwing = running ? Math.sin(distance / 6) * 10 : 0;
+  ctx.beginPath();
+  if (player.onGround) {
+    ctx.moveTo(cx - 3, bodyBottom);
+    ctx.lineTo(cx - 8 + legSwing, feetY);
+    ctx.moveTo(cx + 3, bodyBottom);
+    ctx.lineTo(cx + 8 - legSwing, feetY);
+  } else {
+    ctx.moveTo(cx - 3, bodyBottom);
+    ctx.lineTo(cx - 10, feetY - 6);
+    ctx.moveTo(cx + 3, bodyBottom);
+    ctx.lineTo(cx + 10, feetY - 6);
+  }
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(cx, bodyTop);
+  ctx.lineTo(cx, bodyBottom);
+  ctx.stroke();
+
+  const armSwing = running ? Math.sin(distance / 6 + Math.PI) * 8 : 0;
+  ctx.beginPath();
+  if (player.onGround) {
+    ctx.moveTo(cx, bodyMid);
+    ctx.lineTo(cx - 12 + armSwing, bodyMid + 10);
+    ctx.moveTo(cx, bodyMid);
+    ctx.lineTo(cx + 12 - armSwing, bodyMid + 10);
+  } else {
+    ctx.moveTo(cx, bodyMid);
+    ctx.lineTo(cx - 14, bodyMid - 10);
+    ctx.moveTo(cx, bodyMid);
+    ctx.lineTo(cx + 14, bodyMid - 10);
+  }
+  ctx.stroke();
+
+  const headCx = cx;
+  const headCy = bodyTop - headR + 2;
+  if (faceImg && faceImg.complete) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(headCx, headCy, headR, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    // cover-fit the photo into the head circle
+    const ir = headR * 2;
+    const scale = Math.max(ir / faceImg.width, ir / faceImg.height);
+    const dw = faceImg.width * scale;
+    const dh = faceImg.height * scale;
+    ctx.drawImage(faceImg, headCx - dw / 2, headCy - dh / 2, dw, dh);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(headCx, headCy, headR, 0, Math.PI * 2);
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#ffd9b3';
+    ctx.beginPath();
+    ctx.arc(headCx, headCy, headR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+/* ============ BOOTSTRAP ============ */
+renderCharGrid();
+if (DB.lastName) {
+  document.getElementById('playerName').value = DB.lastName;
+  playerName = DB.lastName;
+}
+if (DB.lastChar && CHARACTERS.find(c => c.id === DB.lastChar)) {
+  selectCharacter(DB.lastChar);
+}
+</script>
+</body>
+</html>
