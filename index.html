@@ -272,12 +272,19 @@ async function submitScore(entry) {
 }
 
 async function fetchScores() {
+  // Pull more than we need so we can dedupe to one-per-name and still fill the board.
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/scores?select=name,char_id,score,created_at&order=score.desc&limit=50`,
+    `${SUPABASE_URL}/rest/v1/scores?select=name,char_id,score,created_at&order=score.desc&limit=500`,
     { headers: { 'apikey': SUPABASE_ANON_KEY } }
   );
   if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
-  return await res.json();
+  const all = await res.json();
+  const bestByName = new Map();
+  for (const row of all) {
+    const key = (row.name || 'Anonymous').toLowerCase();
+    if (!bestByName.has(key)) bestByName.set(key, row);
+  }
+  return [...bestByName.values()].slice(0, 50);
 }
 
 /* ============ SCREENS ============ */
@@ -387,7 +394,7 @@ const MAX_JUMP_HOLD = 14;
 
 function resetGame() {
   score = 0;
-  speed = 5;
+  speed = 6.5;
   distance = 0;
   obstacles = [];
   clouds = [
@@ -484,7 +491,7 @@ function update(dt) {
   const frames = dt / 16.67;
   distance += speed * frames;
   score = Math.floor(distance / 10);
-  speed = 5 + Math.min(12, distance / 1200);
+  speed = 6.5 + Math.min(14, distance / 800);
 
   if (spaceJustPressed && player.onGround) {
     player.vy = JUMP_VELOCITY;
@@ -512,8 +519,8 @@ function update(dt) {
   spawnTimer -= frames;
   if (spawnTimer <= 0) {
     spawnObstacle();
-    const baseGap = Math.max(45, 110 - speed * 4);
-    spawnTimer = baseGap + Math.random() * 60;
+    const baseGap = Math.max(32, 95 - speed * 4);
+    spawnTimer = baseGap + Math.random() * 45;
   }
 
   obstacles.forEach(o => o.x -= speed * frames);
@@ -532,8 +539,8 @@ function update(dt) {
 
 function spawnObstacle() {
   const r = Math.random();
-  const tall = speed > 9 && r < 0.3;
-  const wide = speed > 11 && r > 0.75;
+  const tall = speed > 8 && r < 0.35;
+  const wide = speed > 10 && r > 0.7;
   let w = 22, h = 40;
   if (tall) { h = 60 + Math.random() * 15; w = 22; }
   if (wide) { w = 50 + Math.random() * 20; h = 32; }
