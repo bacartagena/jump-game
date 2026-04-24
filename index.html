@@ -245,17 +245,39 @@ let selectedChar = null;
 let playerName = '';
 
 /* ============ STORAGE ============ */
+const SUPABASE_URL = 'https://dmycfspwbjrjpsshlspp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRteWNmc3B3YmpyanBzc2hsc3BwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5Nzc2MTgsImV4cCI6MjA5MjU1MzYxOH0.sP1WZVQL-Rwg3Vm5T-zfTptdUVvsaWU60U_YmMwNCrE';
+
 const DB = {
-  get scores() { return JSON.parse(localStorage.getItem('bw_scores') || '[]'); },
-  set scores(v) { localStorage.setItem('bw_scores', JSON.stringify(v)); },
   get lastName() { return localStorage.getItem('bw_lastName') || ''; },
   set lastName(v) { localStorage.setItem('bw_lastName', v); },
   get lastChar() { return localStorage.getItem('bw_lastChar') || ''; },
   set lastChar(v) { localStorage.setItem('bw_lastChar', v); },
+  get myBest() { return parseInt(localStorage.getItem('bw_myBest') || '0', 10); },
+  set myBest(v) { localStorage.setItem('bw_myBest', String(v)); },
 };
 
-function bestScore() {
-  return DB.scores.reduce((m, s) => Math.max(m, s.score), 0);
+async function submitScore(entry) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/scores`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify(entry),
+  });
+  if (!res.ok) throw new Error(`submit failed: ${res.status}`);
+}
+
+async function fetchScores() {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/scores?select=name,char_id,score,created_at&order=score.desc&limit=50`,
+    { headers: { 'apikey': SUPABASE_ANON_KEY } }
+  );
+  if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
+  return await res.json();
 }
 
 /* ============ SCREENS ============ */
@@ -296,30 +318,37 @@ document.getElementById('playBtn').addEventListener('click', startGameSession);
 document.getElementById('leaderboardBtn').addEventListener('click', showLeaderboard);
 
 /* ============ LEADERBOARD ============ */
-function showLeaderboard() {
-  const rows = [...DB.scores].sort((a, b) => b.score - a.score).slice(0, 50);
+async function showLeaderboard() {
+  show('leaderboardScreen');
   const list = document.getElementById('lbList');
+  list.innerHTML = '<div style="text-align:center; padding: 40px; color:#b8b8d4;">Loading…</div>';
+  let rows;
+  try {
+    rows = await fetchScores();
+  } catch (e) {
+    list.innerHTML = '<div style="text-align:center; padding: 40px; color:#ff8a9b;">Couldn\u2019t load the leaderboard. Check your connection.</div>';
+    return;
+  }
   if (rows.length === 0) {
     list.innerHTML = '<div style="text-align:center; padding: 40px; color:#b8b8d4;">No scores yet. Be the first!</div>';
-  } else {
-    list.innerHTML = rows.map((r, i) => {
-      const c = CHARACTERS.find(c => c.id === r.charId);
-      const photo = c ? c.photo : '';
-      const charName = c ? c.name : r.charId;
-      return `
-        <div class="lb-row">
-          <div class="lb-rank">#${i + 1}</div>
-          <div class="lb-photo" style="background-image:url('${photo}')"></div>
-          <div>
-            <div style="font-weight:600;">${escapeHtml(r.name || 'Anonymous')}</div>
-            <div class="lb-meta">as ${escapeHtml(charName)}</div>
-          </div>
-          <div class="lb-score">${r.score}</div>
-        </div>
-      `;
-    }).join('');
+    return;
   }
-  show('leaderboardScreen');
+  list.innerHTML = rows.map((r, i) => {
+    const c = CHARACTERS.find(c => c.id === r.char_id);
+    const photo = c ? c.photo : '';
+    const charName = c ? c.name : r.char_id;
+    return `
+      <div class="lb-row">
+        <div class="lb-rank">#${i + 1}</div>
+        <div class="lb-photo" style="background-image:url('${photo}')"></div>
+        <div>
+          <div style="font-weight:600;">${escapeHtml(r.name || 'Anonymous')}</div>
+          <div class="lb-meta">as ${escapeHtml(charName)}</div>
+        </div>
+        <div class="lb-score">${r.score}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 function escapeHtml(s) {
@@ -375,7 +404,7 @@ function resetGame() {
 
 function startGameSession() {
   if (!selectedChar) return;
-  document.getElementById('hudBest').textContent = bestScore();
+  document.getElementById('hudBest').textContent = DB.myBest;
   document.getElementById('hudScore').textContent = '0';
   loadFaceImage(selectedChar.photo);
   show('gameScreen');
@@ -517,21 +546,19 @@ function aabb(ax, ay, aw, ah, bx, by, bw, bh) {
 
 function die() {
   gameState = 'dead';
-  const prevBest = bestScore();
+  const prevBest = DB.myBest;
   const newBest = score > prevBest;
-  const entry = {
-    name: playerName || 'Anonymous',
-    charId: selectedChar.id,
-    score,
-    at: Date.now(),
-  };
-  const scores = DB.scores;
-  scores.push(entry);
-  DB.scores = scores;
+  if (newBest) DB.myBest = score;
   document.getElementById('finalScore').textContent = score;
-  document.getElementById('newBestMsg').textContent = newBest ? 'New best score!' : '';
+  document.getElementById('newBestMsg').textContent = newBest ? 'New personal best!' : '';
   document.getElementById('hudBest').textContent = Math.max(prevBest, score);
   document.getElementById('deathOverlay').classList.remove('hidden');
+  // fire-and-forget submit; don't block UI on network
+  submitScore({
+    name: (playerName || 'Anonymous').slice(0, 30),
+    char_id: selectedChar.id,
+    score,
+  }).catch(err => console.warn('Score submit failed:', err));
 }
 
 /* ============ RENDER ============ */
